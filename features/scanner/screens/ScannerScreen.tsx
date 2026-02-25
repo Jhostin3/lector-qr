@@ -1,36 +1,38 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  Dimensions,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useQRScanner } from '../hooks/useQRScanner';
 import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
 import type { QRPayload } from '../../../services/qrService';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
 
   const handleValidQR = (payload: QRPayload) => {
-    // Navegar al flujo de pago con el payload serializado
     router.push({
       pathname: '/payment/confirm',
-      params: {
-        payload: JSON.stringify(payload),
-      },
+      params: { payload: JSON.stringify(payload) },
     });
   };
 
-  const { state, permission, requestPermission, onBarcodeScanned, lastError } =
+  const { state, permission, requestPermission, onBarcodeScanned, resetScanner, lastError } =
     useQRScanner(handleValidQR);
+
+  // Resetear el scanner cada vez que esta pantalla gana foco.
+  // Cubre el caso en que el usuario vuelve atrás desde la pantalla de pago.
+  useFocusEffect(
+    useCallback(() => {
+      resetScanner();
+    }, [resetScanner])
+  );
 
   // ── Estado: esperando permisos ──────────────────────────────────────────────
   if (!permission) {
@@ -133,10 +135,7 @@ export default function ScannerScreen() {
         <View
           style={[
             styles.footerHint,
-            {
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              borderRadius: borderRadius.lg,
-            },
+            { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: borderRadius.lg },
           ]}
         >
           <Text
@@ -177,9 +176,7 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    top: 0, left: 0, right: 0,
     alignItems: 'center',
     paddingTop: 8,
   },
@@ -191,8 +188,7 @@ const styles = StyleSheet.create({
   footer: {
     position: 'absolute',
     bottom: 60,
-    left: 32,
-    right: 32,
+    left: 32, right: 32,
     alignItems: 'center',
   },
   footerHint: {

@@ -2,10 +2,14 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated, Dimensions, StyleSheet } from 'react-native';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const FRAME_SIZE = SCREEN_WIDTH * 0.72;
 const CORNER_SIZE = 28;
 const CORNER_THICKNESS = 4;
+
+// Posición del frame centrado en pantalla (con offset vertical de -40)
+const FRAME_LEFT = (SCREEN_WIDTH - FRAME_SIZE) / 2;
+const FRAME_TOP = SCREEN_HEIGHT / 2 - FRAME_SIZE / 2 - 40;
 
 interface ScannerOverlayProps {
   isDetected: boolean;
@@ -16,15 +20,15 @@ interface ScannerOverlayProps {
 export function ScannerOverlay({ isDetected, hasError, errorMessage }: ScannerOverlayProps) {
   const { colors, typography, spacing } = useAppTheme();
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const frameColorAnim = useRef(new Animated.Value(0)).current;
   const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const OVERLAY_COLOR = 'rgba(0,0,0,0.62)';
 
   // Animación de pulso del marco
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.04, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.03, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
       ])
     );
     pulse.start();
@@ -43,15 +47,6 @@ export function ScannerOverlay({ isDetected, hasError, errorMessage }: ScannerOv
     return () => scanLine.stop();
   }, []);
 
-  // Color del marco según estado
-  useEffect(() => {
-    Animated.timing(frameColorAnim, {
-      toValue: isDetected ? 1 : hasError ? 2 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [isDetected, hasError]);
-
   const cornerColor = isDetected
     ? colors.success
     : hasError
@@ -65,61 +60,119 @@ export function ScannerOverlay({ isDetected, hasError, errorMessage }: ScannerOv
 
   return (
     <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-      {/* Overlay oscuro con recorte */}
-      <View style={[styles.overlay, { backgroundColor: colors.scannerOverlay }]} />
 
-      {/* Frame central */}
-      <View style={[styles.frameContainer, { width: FRAME_SIZE, height: FRAME_SIZE }]}>
-        {/* Recorte transparente */}
-        <View style={[styles.clearZone, { width: FRAME_SIZE, height: FRAME_SIZE }]}>
+      {/* ── 4 paneles oscuros que rodean el frame, sin tapar el centro ── */}
+      {/* Panel superior */}
+      <View
+        style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0,
+          height: FRAME_TOP,
+          backgroundColor: OVERLAY_COLOR,
+        }}
+      />
+      {/* Panel inferior */}
+      <View
+        style={{
+          position: 'absolute',
+          top: FRAME_TOP + FRAME_SIZE,
+          left: 0, right: 0, bottom: 0,
+          backgroundColor: OVERLAY_COLOR,
+        }}
+      />
+      {/* Panel izquierdo */}
+      <View
+        style={{
+          position: 'absolute',
+          top: FRAME_TOP,
+          left: 0,
+          width: FRAME_LEFT,
+          height: FRAME_SIZE,
+          backgroundColor: OVERLAY_COLOR,
+        }}
+      />
+      {/* Panel derecho */}
+      <View
+        style={{
+          position: 'absolute',
+          top: FRAME_TOP,
+          left: FRAME_LEFT + FRAME_SIZE,
+          right: 0,
+          height: FRAME_SIZE,
+          backgroundColor: OVERLAY_COLOR,
+        }}
+      />
 
-          {/* Línea de escaneo */}
-          {!isDetected && !hasError && (
-            <Animated.View
-              style={[
-                styles.scanLine,
-                {
-                  backgroundColor: colors.primary,
-                  width: FRAME_SIZE - 8,
-                  transform: [{ translateY: scanLineTranslate }],
-                },
-              ]}
-            />
-          )}
+      {/* ── Frame del escáner (sobre la zona limpia de la cámara) ── */}
+      <View
+        style={{
+          position: 'absolute',
+          top: FRAME_TOP,
+          left: FRAME_LEFT,
+          width: FRAME_SIZE,
+          height: FRAME_SIZE,
+        }}
+      >
+        {/* Línea de escaneo */}
+        {!isDetected && !hasError && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              height: 2,
+              left: 4,
+              width: FRAME_SIZE - 8,
+              backgroundColor: colors.primary,
+              opacity: 0.85,
+              borderRadius: 1,
+              transform: [{ translateY: scanLineTranslate }],
+            }}
+          />
+        )}
 
-          {/* Flash de éxito */}
-          {isDetected && (
-            <Animated.View
-              style={[
-                styles.successFlash,
-                { backgroundColor: colors.success, borderRadius: 12 },
-              ]}
-            />
-          )}
-        </View>
+        {/* Flash verde al detectar */}
+        {isDetected && (
+          <View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: colors.success,
+              opacity: 0.18,
+              borderRadius: 12,
+            }}
+          />
+        )}
 
-        {/* Esquinas del frame */}
-        <Animated.View style={[styles.corners, { transform: [{ scale: pulseAnim }] }]}>
-          {/* Esquina superior izquierda */}
+        {/* Esquinas animadas */}
+        <Animated.View
+          style={[StyleSheet.absoluteFillObject, { transform: [{ scale: pulseAnim }] }]}
+        >
           <View style={[styles.cornerTL, { borderColor: cornerColor }]} />
-          {/* Esquina superior derecha */}
           <View style={[styles.cornerTR, { borderColor: cornerColor }]} />
-          {/* Esquina inferior izquierda */}
           <View style={[styles.cornerBL, { borderColor: cornerColor }]} />
-          {/* Esquina inferior derecha */}
           <View style={[styles.cornerBR, { borderColor: cornerColor }]} />
         </Animated.View>
       </View>
 
-      {/* Texto de estado */}
-      <View style={styles.labelContainer}>
+      {/* ── Texto de estado debajo del frame ── */}
+      <View
+        style={{
+          position: 'absolute',
+          top: FRAME_TOP + FRAME_SIZE + spacing.lg,
+          left: 0,
+          right: 0,
+          alignItems: 'center',
+          paddingHorizontal: 32,
+        }}
+      >
         <Text
           style={[
             typography.bodyMedium,
             {
-              color: isDetected ? colors.success : hasError ? colors.error : 'rgba(255,255,255,0.85)',
+              color: isDetected
+                ? colors.success
+                : hasError
+                ? colors.error
+                : 'rgba(255,255,255,0.85)',
               textAlign: 'center',
-              marginTop: spacing.lg,
               fontWeight: isDetected || hasError ? '600' : '400',
             },
           ]}
@@ -139,77 +192,35 @@ const cornerStyle = {
   position: 'absolute' as const,
   width: CORNER_SIZE,
   height: CORNER_SIZE,
-  borderColor: 'white',
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  frameContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginLeft: -(FRAME_SIZE / 2),
-    marginTop: -(FRAME_SIZE / 2) - 40,
-  },
-  clearZone: {
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
-  },
-  scanLine: {
-    position: 'absolute',
-    height: 2,
-    left: 4,
-    opacity: 0.85,
-    borderRadius: 1,
-  },
-  successFlash: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.18,
-  },
-  corners: {
-    ...StyleSheet.absoluteFillObject,
-  },
   cornerTL: {
     ...cornerStyle,
-    top: 0,
-    left: 0,
+    top: 0, left: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
     borderTopLeftRadius: 8,
   },
   cornerTR: {
     ...cornerStyle,
-    top: 0,
-    right: 0,
+    top: 0, right: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
     borderTopRightRadius: 8,
   },
   cornerBL: {
     ...cornerStyle,
-    bottom: 0,
-    left: 0,
+    bottom: 0, left: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
     borderBottomLeftRadius: 8,
   },
   cornerBR: {
     ...cornerStyle,
-    bottom: 0,
-    right: 0,
+    bottom: 0, right: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
     borderBottomRightRadius: 8,
-  },
-  labelContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    marginTop: FRAME_SIZE / 2 - 40,
-    alignItems: 'center',
-    paddingHorizontal: 32,
   },
 });
