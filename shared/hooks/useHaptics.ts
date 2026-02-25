@@ -1,35 +1,42 @@
 import * as Haptics from 'expo-haptics';
 
+// Wrapper seguro: ignora errores en plataformas sin soporte háptico (web, simulador)
+const safeImpact = (style: Haptics.ImpactFeedbackStyle): Promise<void> =>
+  Haptics.impactAsync(style).catch(() => {});
+
+const safeNotification = (type: Haptics.NotificationFeedbackType): Promise<void> =>
+  Haptics.notificationAsync(type).catch(() => {});
+
 export function useHaptics() {
   const lightImpact = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    safeImpact(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const mediumImpact = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    safeImpact(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const heavyImpact = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    safeImpact(Haptics.ImpactFeedbackStyle.Heavy);
   };
 
   const successNotification = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    safeNotification(Haptics.NotificationFeedbackType.Success);
   };
 
   const errorNotification = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    safeNotification(Haptics.NotificationFeedbackType.Error);
   };
 
   const warningNotification = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    safeNotification(Haptics.NotificationFeedbackType.Warning);
   };
 
   const qrDetected = () => {
-    // Double impact para feedback distintivo de QR detectado
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).then(() => {
+    // Double impact distintivo para detección de QR
+    safeImpact(Haptics.ImpactFeedbackStyle.Medium).then(() => {
       setTimeout(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        safeImpact(Haptics.ImpactFeedbackStyle.Heavy);
       }, 80);
     });
   };

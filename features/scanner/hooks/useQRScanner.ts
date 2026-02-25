@@ -63,9 +63,9 @@ export function useQRScanner(
     isProcessing.current = false;
   }, []);
 
-  const handleRequestPermission = useCallback(async () => {
+  const handleRequestPermission = useCallback(() => {
     setState('requesting');
-    await requestPermission();
+    requestPermission().catch(() => {});
   }, [requestPermission]);
 
   return {
