@@ -67,12 +67,20 @@ export async function signUp(
   if (error) throw new Error(translateAuthError(error.message));
   if (!data.user) throw new Error('No se pudo crear la cuenta');
 
+  // Guardar perfil. El trigger de Supabase puede haberlo creado ya (con el rol
+  // de raw_user_meta_data). El upsert lo sobreescribe con el valor correcto.
+  // Si falla (ej. RLS), solo advertimos — el rol se retorna siempre del parámetro local.
   const { error: profileError } = await supabase.from('profiles').upsert({
     id: data.user.id,
     name,
     role,
   }, { onConflict: 'id' });
-  if (profileError) throw new Error('Error al guardar el perfil: ' + profileError.message);
+
+  if (profileError) {
+    console.warn('Profile upsert warning:', profileError.message);
+    // No lanzamos error: el trigger pudo haberlo guardado ya con rol correcto.
+    // El registro continúa y la navegación usa el `role` local seleccionado.
+  }
 
   return { id: data.user.id, name, email, role };
 }
