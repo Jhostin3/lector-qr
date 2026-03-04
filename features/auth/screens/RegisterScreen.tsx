@@ -39,8 +39,10 @@ export default function RegisterScreen() {
     setError(null);
     setIsLoading(true);
     try {
-      const profile = await register(name.trim(), email.trim().toLowerCase(), password, role);
-      router.replace(profile.role === 'comprador' ? '/home' : '/scanner');
+      await register(name.trim(), email.trim().toLowerCase(), password, role);
+      // Usar `role` local (lo que el usuario seleccionó), no profile.role del contexto
+      // para evitar condición de carrera con onAuthStateChange
+      router.replace(role === 'comprador' ? '/home' : '/scanner');
     } catch (e: any) {
       setError(e.message ?? 'Error al crear la cuenta');
     } finally {

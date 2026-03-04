@@ -33,9 +33,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
-      } else if (event === 'SIGNED_IN') {
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Solo refrescar si ya hay sesión activa (no sobreescribir durante login/register)
         const profile = await getCurrentUser();
-        setUser(profile);
+        if (profile) setUser(profile);
       }
     });
 
