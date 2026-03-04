@@ -6,26 +6,34 @@ import Constants from 'expo-constants';
 import { supabase } from './supabase';
 import type { Subscription } from 'expo-modules-core';
 
-// Handler para notificaciones en primer plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// ¿Estamos corriendo dentro de Expo Go?
+// En Expo Go SDK 53+ las push notifications fueron eliminadas.
+const IS_EXPO_GO = Constants.appOwnership === 'expo';
+
+// El projectId debe ser un UUID real, no el placeholder
+const PROJECT_ID: string | undefined = Constants.expoConfig?.extra?.eas?.projectId;
+const HAS_VALID_PROJECT_ID =
+  typeof PROJECT_ID === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(PROJECT_ID);
+
+// Solo configurar el handler si no estamos en Expo Go
+if (!IS_EXPO_GO) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 /**
  * Registra el dispositivo para notificaciones push y guarda el token en Supabase.
- * @returns El token de Expo Push o undefined si hay un error.
+ * En Expo Go o sin projectId válido, retorna undefined silenciosamente.
  */
 async function registerForPushNotificationsAsync(): Promise<string | undefined> {
-  let token;
-
-  if (!Device.isDevice) {
-    console.warn('Push notifications require a physical device.');
-    return undefined;
-  }
+  if (IS_EXPO_GO || !HAS_VALID_PROJECT_ID) return undefined;
+  if (!Device.isDevice) return undefined;
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
@@ -35,38 +43,30 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
     finalStatus = status;
   }
 
-  if (finalStatus !== 'granted') {
-    console.log('Failed to get push token for push notification!');
-    return undefined;
-  }
+  if (finalStatus !== 'granted') return undefined;
 
   try {
-    const projectId = Constants.expoConfig?.extra?.eas.projectId;
-    if (!projectId) {
-      console.error('Push notification setup error: Missing projectId in app.json');
-      return undefined;
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId: PROJECT_ID! })).data;
+
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
     }
-    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    console.log('Expo Push Token:', token);
+
+    return token;
   } catch (e) {
-    console.error('Error getting push token:', e);
+    console.warn('Push token no disponible:', e);
     return undefined;
   }
-
-  if (Platform.OS === 'android') {
-    Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
-  }
-
-  return token;
 }
 
 /**
  * Hook para gestionar el registro de notificaciones y las interacciones.
+ * Es seguro en Expo Go: no hace nada si no hay soporte.
  */
 export function useNotifications() {
   const [expoPushToken, setExpoPushToken] = useState<string>();
@@ -75,61 +75,48 @@ export function useNotifications() {
   const responseListener = useRef<Subscription>();
 
   useEffect(() => {
+    if (IS_EXPO_GO || !HAS_VALID_PROJECT_ID) return;
+
     registerForPushNotificationsAsync().then(async (token) => {
       if (token) {
         setExpoPushToken(token);
-        // Guarda o actualiza el token en la base de datos
         const { error } = await supabase.from('push_tokens').upsert({ token }, { onConflict: 'token' });
-        if (error) {
-          console.error('Error saving push token to Supabase:', error);
-        }
+        if (error) console.warn('Error guardando push token:', error);
       }
     });
 
-    // Listener para cuando se recibe una notificación (app en primer plano)
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      setNotification(notification);
+    notificationListener.current = Notifications.addNotificationReceivedListener((n) => {
+      setNotification(n);
     });
 
-    // Listener para cuando el usuario interactúa con una notificación
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('Notification response:', response);
-      // Aquí puedes agregar lógica de navegación basada en la notificación
     });
 
-    // Función de limpieza para remover los listeners
     return () => {
-      if (notificationListener.current) {
-        // Correct way to remove subscription
-        notificationListener.current.remove();
-      }
-      if (responseListener.current) {
-        // Correct way to remove subscription
-        responseListener.current.remove();
-      }
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, []);
 
-  return {
-    expoPushToken,
-    notification,
-  };
+  return { expoPushToken, notification };
 }
 
 /**
  * Envía una notificación push a través de la API de Expo.
  * Usada internamente por paymentService tras un pago exitoso.
+ * No-op si no hay soporte.
  */
 export async function sendPushNotification(
   token: string,
   title: string,
   body: string
 ): Promise<void> {
+  if (IS_EXPO_GO || !HAS_VALID_PROJECT_ID) return;
+
   await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ to: token, title, body, sound: 'default' }),
-  }).catch(() => {
-    // No interrumpir el flujo si la notificación falla
-  });
+  }).catch(() => {});
 }
