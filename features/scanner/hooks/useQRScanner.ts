@@ -1,60 +1,87 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Vibration } from 'react-native';
-import { BarCodeScanningResult } from 'expo-camera/next';
+import { useCameraPermissions } from 'expo-camera';
+import type { BarcodeScanningResult } from 'expo-camera';
 import { router } from 'expo-router';
-import { validateQrCode, ParsedPayload } from '../../../services/qrService'; // Correct import name
+import { validateQrCode } from '../../../services/qrService';
 
-type ScannerState = 'idle' | 'detecting' | 'detected';
+export type ScannerState = 'scanning' | 'detected' | 'error';
 
-export function useQRScanner() {
-  const [state, setState] = useState<ScannerState>('idle');
+interface UseQRScannerResult {
+  scannerState: ScannerState;
+  permission: ReturnType<typeof useCameraPermissions>[0];
+  requestPermission: () => void;
+  onBarcodeScanned: (result: BarcodeScanningResult) => void;
+  resetScanner: () => void;
+  lastError: string | null;
+}
 
-  const onBarCodeScanned = (result: BarCodeScanningResult) => {
-    if (state !== 'idle') return; // Evita escaneos múltiples
+export function useQRScanner(): UseQRScannerResult {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannerState, setScannerState] = useState<ScannerState>('scanning');
+  const [lastError, setLastError] = useState<string | null>(null);
+  const isProcessing = useRef(false);
 
-    Vibration.vibrate(50); // Feedback háptico inicial
-    setState('detecting');
+  const onBarcodeScanned = useCallback(
+    (result: BarcodeScanningResult) => {
+      if (isProcessing.current || scannerState !== 'scanning') return;
+      isProcessing.current = true;
+      setScannerState('detected');
 
-    // Corrected function name from validateQRCode to validateQrCode
-    const validation = validateQrCode(result.data);
+      const validation = validateQrCode(result.data);
 
-    if (validation.valid && validation.payload) {
-      // Feedback háptico positivo: QR detectado exitosamente
-      Vibration.vibrate([100, 150]);
-      setState('detected');
+      if (validation.valid && validation.payload) {
+        Vibration.vibrate([100, 150]);
 
-      // Navegar según el tipo de QR
-      if (validation.type === 'payment') {
-        router.push({
-          pathname: '/payment/confirm',
-          params: { ...validation.payload } as any,
-        });
-      } else if (validation.type === 'info') {
-        const payload = validation.payload as any;
-        router.push({
-          pathname: '/info',
-          params: {
-            title: payload.title,
-            data: JSON.stringify(payload.data),
-          },
-        });
+        if (validation.type === 'payment') {
+          setTimeout(() => {
+            router.push({
+              pathname: '/payment/confirm',
+              params: { payload: JSON.stringify(validation.payload) },
+            });
+          }, 400);
+        } else if (validation.type === 'info') {
+          const infoPayload = validation.payload as { title: string; data: Record<string, string> };
+          setTimeout(() => {
+            router.push({
+              pathname: '/info',
+              params: {
+                title: infoPayload.title,
+                data: JSON.stringify(infoPayload.data),
+              },
+            });
+          }, 400);
+        }
+      } else {
+        Vibration.vibrate([200, 100, 200]);
+        setLastError(validation.error ?? 'QR no válido');
+        setScannerState('error');
+        setTimeout(() => {
+          setScannerState('scanning');
+          setLastError(null);
+          isProcessing.current = false;
+        }, 2000);
       }
-    } else {
-      // Feedback háptico negativo: QR no válido
-      Vibration.vibrate([200, 100, 200]);
-      console.log('QR no válido:', validation.error);
-      // Reinicia para permitir otro escaneo
-      setTimeout(() => setState('idle'), 1500);
-    }
-  };
+    },
+    [scannerState]
+  );
 
-  const resetScanner = () => {
-    setState('idle');
-  };
+  const resetScanner = useCallback(() => {
+    setScannerState('scanning');
+    setLastError(null);
+    isProcessing.current = false;
+  }, []);
+
+  const handleRequestPermission = useCallback(() => {
+    requestPermission().catch(() => {});
+  }, [requestPermission]);
 
   return {
-    scannerState: state,
-    onBarCodeScanned,
+    scannerState,
+    permission,
+    requestPermission: handleRequestPermission,
+    onBarcodeScanned,
     resetScanner,
+    lastError,
   };
 }
