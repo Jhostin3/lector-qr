@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   StyleSheet,
   ActivityIndicator,
+  TextInput, // Import TextInput
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { usePaymentFlow } from '../hooks/usePaymentFlow';
@@ -21,17 +22,28 @@ export default function PaymentConfirmScreen() {
 
   const payload: QRPayload | null = rawPayload ? JSON.parse(rawPayload) : null;
 
-  const { flowState, paymentIntent, paymentResult, errorMessage, initializePayment, confirmAndPay, cancelFlow } =
-    usePaymentFlow();
+  // State for the amount input
+  const [amount, setAmount] = useState(payload?.amount.toString() || '');
+  const [isAmountEditable, setIsAmountEditable] = useState(false);
 
-  // Inicializar el Payment Intent al montar la pantalla
+  const {
+    flowState,
+    paymentIntent,
+    paymentResult,
+    errorMessage,
+    initializePayment,
+    confirmAndPay,
+    cancelFlow,
+  } = usePaymentFlow();
+
+  // Initialize the Payment Intent when the screen mounts
   useEffect(() => {
     if (payload) {
-      initializePayment(payload);
+      initializePayment(payload, parseFloat(amount));
     }
   }, []);
 
-  // Navegar a success/error cuando el flujo termina
+  // Navigate to success/error when the flow ends
   useEffect(() => {
     if (flowState === 'success' && paymentResult) {
       router.replace({
@@ -40,7 +52,7 @@ export default function PaymentConfirmScreen() {
           transactionId: paymentResult.transactionId,
           completedAt: paymentResult.completedAt?.toISOString(),
           merchantName: payload?.merchantName,
-          amount: payload?.amount?.toString(),
+          amount: amount,
           currency: payload?.currency,
         },
       });
@@ -56,6 +68,20 @@ export default function PaymentConfirmScreen() {
     await cancelFlow();
     router.replace('/');
   };
+
+  const handleAmountChange = (text: string) => {
+    // Allow only numbers and a single decimal point
+    if (/^\d*\.?\d*$/.test(text)) {
+      setAmount(text);
+    }
+  };
+
+  const handleConfirmPayment = () => {
+    if (payload) {
+      initializePayment(payload, parseFloat(amount));
+    }
+    confirmAndPay();
+  }
 
   if (!payload) {
     return (
@@ -88,16 +114,42 @@ export default function PaymentConfirmScreen() {
             </Text>
           </View>
 
-          {/* Tarjeta del comercio */}
+          {/* Merchant Card */}
           <MerchantCard
             merchantName={payload.merchantName}
             description={payload.description}
             reference={payload.reference}
-            amount={payload.amount}
+            amount={parseFloat(amount) || 0}
             currency={payload.currency}
           />
 
-          {/* Estado del Payment Intent */}
+          {/* Amount Input */}
+          <View style={{ marginTop: spacing.lg }}>
+            <Text style={[typography.label, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
+              Monto a pagar ({payload.currency})
+            </Text>
+            <TextInput
+              style={[
+                typography.headingLarge, // Use a larger font for the amount
+                {
+                  color: colors.textPrimary,
+                  backgroundColor: colors.surface,
+                  borderRadius: borderRadius.md,
+                  padding: spacing.md,
+                  borderWidth: 1,
+                  borderColor: isAmountEditable ? colors.primary : colors.border,
+                },
+              ]}
+              value={amount}
+              onChangeText={handleAmountChange}
+              keyboardType="numeric"
+              onFocus={() => setIsAmountEditable(true)}
+              onBlur={() => setIsAmountEditable(false)}
+            />
+          </View>
+
+
+          {/* Payment Intent Status */}
           {isCreatingIntent && (
             <View
               style={[
@@ -130,7 +182,7 @@ export default function PaymentConfirmScreen() {
             </View>
           )}
 
-          {/* Seguridad info */}
+          {/* Security Note */}
           <View
             style={[
               styles.securityNote,
@@ -143,7 +195,7 @@ export default function PaymentConfirmScreen() {
           </View>
         </ScrollView>
 
-        {/* Acciones */}
+        {/* Actions */}
         <View
           style={[
             styles.actions,
@@ -157,10 +209,10 @@ export default function PaymentConfirmScreen() {
         >
           <Button
             label="Pagar ahora"
-            onPress={confirmAndPay}
+            onPress={handleConfirmPayment} // Use the new handler
             fullWidth
             size="lg"
-            disabled={!isReady}
+            disabled={!isReady || !parseFloat(amount)}
             loading={isProcessing}
           />
           <Button
@@ -175,7 +227,7 @@ export default function PaymentConfirmScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Overlay de procesamiento */}
+      {/* Processing Overlay */}
       {isProcessing && (
         <LoadingOverlay
           message="Procesando pago"

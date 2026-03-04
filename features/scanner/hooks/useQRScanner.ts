@@ -1,79 +1,60 @@
-import { useState, useCallback, useRef } from 'react';
-import { useCameraPermissions } from 'expo-camera';
-import type { BarcodeScanningResult } from 'expo-camera';
-import { validateQRCode } from '../../../services/qrService';
-import type { QRPayload } from '../../../services/qrService';
-import { useHaptics } from '../../../shared/hooks/useHaptics';
+import { useState } from 'react';
+import { Vibration } from 'react-native';
+import { BarCodeScanningResult } from 'expo-camera/next';
+import { router } from 'expo-router';
+import { validateQrCode, ParsedPayload } from '../../../services/qrService'; // Correct import name
 
-export type ScannerState = 'requesting' | 'denied' | 'scanning' | 'detected' | 'error';
+type ScannerState = 'idle' | 'detecting' | 'detected';
 
-interface UseQRScannerResult {
-  state: ScannerState;
-  permission: ReturnType<typeof useCameraPermissions>[0];
-  requestPermission: () => void;
-  onBarcodeScanned: (result: BarcodeScanningResult) => void;
-  resetScanner: () => void;
-  lastError: string | null;
-}
+export function useQRScanner() {
+  const [state, setState] = useState<ScannerState>('idle');
 
-export function useQRScanner(
-  onValidQR: (payload: QRPayload) => void
-): UseQRScannerResult {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [state, setState] = useState<ScannerState>('scanning');
-  const [lastError, setLastError] = useState<string | null>(null);
-  const isProcessing = useRef(false);
-  const { qrDetected, errorNotification } = useHaptics();
+  const onBarCodeScanned = (result: BarCodeScanningResult) => {
+    if (state !== 'idle') return; // Evita escaneos múltiples
 
-  const onBarcodeScanned = useCallback(
-    (result: BarcodeScanningResult) => {
-      // Evitar múltiples disparos rápidos del scanner
-      if (isProcessing.current || state === 'detected') return;
-      isProcessing.current = true;
+    Vibration.vibrate(50); // Feedback háptico inicial
+    setState('detecting');
 
+    // Corrected function name from validateQRCode to validateQrCode
+    const validation = validateQrCode(result.data);
+
+    if (validation.valid && validation.payload) {
+      // Feedback háptico positivo: QR detectado exitosamente
+      Vibration.vibrate([100, 150]);
       setState('detected');
 
-      const validation = validateQRCode(result.data);
-
-      if (validation.valid) {
-        // Feedback háptico positivo: QR detectado exitosamente
-        qrDetected();
-        // Pequeña pausa para que el usuario vea el feedback visual
-        setTimeout(() => {
-          onValidQR(validation.payload);
-        }, 400);
-      } else {
-        errorNotification();
-        setLastError(validation.error);
-        setState('error');
-        // Auto-reset tras error
-        setTimeout(() => {
-          setState('scanning');
-          setLastError(null);
-          isProcessing.current = false;
-        }, 2000);
+      // Navegar según el tipo de QR
+      if (validation.type === 'payment') {
+        router.push({
+          pathname: '/payment/confirm',
+          params: { ...validation.payload } as any,
+        });
+      } else if (validation.type === 'info') {
+        const payload = validation.payload as any;
+        router.push({
+          pathname: '/info',
+          params: {
+            title: payload.title,
+            data: JSON.stringify(payload.data),
+          },
+        });
       }
-    },
-    [state, onValidQR, qrDetected, errorNotification]
-  );
+    } else {
+      // Feedback háptico negativo: QR no válido
+      Vibration.vibrate([200, 100, 200]);
+      console.log('QR no válido:', validation.error);
+      // Reinicia para permitir otro escaneo
+      setTimeout(() => setState('idle'), 1500);
+    }
+  };
 
-  const resetScanner = useCallback(() => {
-    setState('scanning');
-    setLastError(null);
-    isProcessing.current = false;
-  }, []);
-
-  const handleRequestPermission = useCallback(() => {
-    setState('requesting');
-    requestPermission().catch(() => {});
-  }, [requestPermission]);
+  const resetScanner = () => {
+    setState('idle');
+  };
 
   return {
-    state,
-    permission,
-    requestPermission: handleRequestPermission,
-    onBarcodeScanned,
+    scannerState: state,
+    onBarCodeScanned,
     resetScanner,
-    lastError,
   };
 }

@@ -1,161 +1,176 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { URL } from 'react-native-url-polyfill';
+
+const VALID_PREFIXES = ['pay://', 'checkout://'];
+
 export interface QRPayload {
-  merchantId: string;
-  merchantName: string;
-  amount: number;
-  currency: string;
-  description: string;
-  reference: string;
+  merchantId: string; // Identificador único del comercio
+  merchantName: string; // Nombre del comercio
+  amount: number; // Monto a pagar
+  currency: string; // Moneda (ej. MXN, USD)
+  description: string; // Descripción de la compra
+  reference: string; // Referencia única de la transacción
 }
 
-export type QRValidationResult =
-  | { valid: true; payload: QRPayload }
-  | { valid: false; error: string };
-
-// Prefijos reconocidos para QR de pago
-const VALID_PREFIXES = ['pay://', 'PAGOS://', 'checkout://'];
-
-// Merchants de demo para simular QR reales
-const DEMO_MERCHANTS: Record<string, QRPayload> = {
-  'MERCH001': {
-    merchantId: 'MERCH001',
-    merchantName: 'Cafetería Campus',
-    amount: 85.50,
-    currency: 'MXN',
-    description: 'Orden #4521',
-    reference: 'ORD-4521',
-  },
-  'MERCH002': {
-    merchantId: 'MERCH002',
-    merchantName: 'Librería Académica',
-    amount: 245.00,
-    currency: 'MXN',
-    description: 'Compra de materiales',
-    reference: 'LIB-7834',
-  },
-  'MERCH003': {
-    merchantId: 'MERCH003',
-    merchantName: 'Estacionamiento ITESM',
-    amount: 30.00,
-    currency: 'MXN',
-    description: 'Pase diario',
-    reference: 'PARK-112',
-  },
-};
-
-export function validateQRCode(rawData: string): QRValidationResult {
-  if (!rawData || rawData.trim().length === 0) {
-    return { valid: false, error: 'Código QR vacío' };
-  }
-
-  // Detectar si es un QR de pago con prefijo válido
-  const hasValidPrefix = VALID_PREFIXES.some(prefix =>
-    rawData.toLowerCase().startsWith(prefix.toLowerCase())
-  );
-
-  if (hasValidPrefix) {
-    return parseStructuredQR(rawData);
-  }
-
-  // Intentar parsear JSON directo (QR generados internamente)
-  if (rawData.startsWith('{')) {
-    return parseJsonQR(rawData);
-  }
-
-  // Simular QR de demo para testing en entorno académico
-  if (rawData.startsWith('DEMO_')) {
-    return parseDemoQR(rawData);
-  }
-
-  // QR genérico: construir payload simulado para cualquier QR real
-  return {
-    valid: true,
-    payload: buildGenericPayload(rawData),
-  };
+export interface InfoPayload {
+  title: string;
+  data: { [key: string]: string };
 }
 
-function parseStructuredQR(data: string): QRValidationResult {
+export type ParsedPayload = QRPayload | InfoPayload;
+
+export interface QRValidationResult {
+  valid: boolean;
+  type?: 'payment' | 'info';
+  payload?: ParsedPayload;
+  error?: string;
+}
+
+/**
+ * Valida y parsea el contenido de un código QR.
+ * Soporta múltiples formatos: URL de pago estructurada, JSON y texto simple.
+ * @param rawData El contenido de texto del código QR.
+ * @returns Un objeto QRValidationResult.
+ */
+export function validateQrCode(rawData: string): QRValidationResult {
+  if (!rawData || typeof rawData !== 'string') {
+    return { valid: false, error: 'El QR está vacío o no es válido.' };
+  }
+
   try {
-    const url = new URL(data.replace('pay://', 'https://').replace('checkout://', 'https://'));
-    const params = url.searchParams;
+    // Detectar si es un QR de pago con prefijo válido
+    const hasValidPrefix = VALID_PREFIXES.some(prefix =>
+      rawData.toLowerCase().startsWith(prefix.toLowerCase())
+    );
 
-    const amount = parseFloat(params.get('amount') || '0');
-    if (isNaN(amount) || amount <= 0) {
-      return { valid: false, error: 'Monto inválido en el código QR' };
+    if (hasValidPrefix) {
+      return parseStructuredQR(rawData);
     }
 
+    // Intentar parsear JSON directo (QR generados internamente o de info)
+    if (rawData.startsWith('{')) {
+      return parseJsonQR(rawData);
+    }
+
+    // Simular QR de demo para testing en entorno académico
+    if (rawData.startsWith('DEMO_')) {
+      return parseDemoQR(rawData);
+    }
+
+    // QR genérico: construir payload simulado para cualquier QR real
     return {
       valid: true,
-      payload: {
-        merchantId: params.get('mid') || 'UNKNOWN',
-        merchantName: params.get('merchant') || 'Comercio',
+      type: 'payment',
+      payload: buildGenericPayload(rawData),
+    };
+  } catch (e: any) {
+    return { valid: false, error: `Error inesperado: ${e.message}` };
+  }
+
+  function parseStructuredQR(data: string): QRValidationResult {
+    try {
+      const url = new URL(data.replace('pay://', 'https://').replace('checkout://', 'https://'));
+      const params = url.searchParams;
+
+      const amount = parseFloat(params.get('amount') || '0');
+      if (isNaN(amount) || amount <= 0) {
+        return { valid: false, error: 'El monto en el QR no es válido.' };
+      }
+
+      const payload: QRPayload = {
+        merchantId: params.get('merchantId') || 'MERCH_UNKNOWN',
+        merchantName: params.get('merchantName') || 'Comercio Desconocido',
         amount,
         currency: params.get('currency') || 'MXN',
-        description: params.get('desc') || 'Pago',
-        reference: params.get('ref') || generateReference(),
-      },
-    };
-  } catch {
-    return { valid: false, error: 'Formato de QR no reconocido' };
+        description: params.get('description') || 'Pago desde QR',
+        reference: params.get('reference') || `REF_${Date.now()}`,
+      };
+
+      return { valid: true, type: 'payment', payload };
+    } catch (e: any) {
+      return { valid: false, error: `El formato del QR estructurado es incorrecto: ${e.message}` };
+    }
   }
-}
 
-function parseJsonQR(data: string): QRValidationResult {
-  try {
-    const parsed = JSON.parse(data) as Partial<QRPayload>;
+  function parseJsonQR(data: string): QRValidationResult {
+    try {
+      const parsed = JSON.parse(data);
 
-    if (!parsed.merchantName || !parsed.amount) {
-      return { valid: false, error: 'QR incompleto: faltan campos requeridos' };
+      // NEW: Check if it is an Info QR
+      if (parsed.type === 'info' && parsed.data && typeof parsed.data === 'object') {
+        return {
+          valid: true,
+          type: 'info',
+          payload: {
+            title: parsed.title || 'Información de QR',
+            data: parsed.data,
+          },
+        };
+      }
+
+      // Assume it's a payment QR and validate
+      const amount = typeof parsed.amount === 'number' ? parsed.amount : parseFloat(parsed.amount || '0');
+      if (isNaN(amount) || amount <= 0) {
+        return { valid: false, error: 'El monto en el QR (JSON) no es válido.' };
+      }
+
+      const payload: QRPayload = {
+        merchantId: parsed.merchantId || 'MERCH_UNKNOWN',
+        merchantName: parsed.merchantName || 'Comercio Desconocido',
+        amount,
+        currency: parsed.currency || 'MXN',
+        description: parsed.description || 'Pago desde QR',
+        reference: parsed.reference || `REF_${Date.now()}`,
+      };
+
+      return { valid: true, type: 'payment', payload };
+    } catch (e: any) {
+      return { valid: false, error: `El QR no contiene un JSON válido: ${e.message}` };
+    }
+  }
+
+  function parseDemoQR(data: string): QRValidationResult {
+    const parts = data.split('_');
+    const amount = parts.length > 1 ? parseFloat(parts[1]) : 0;
+    if (isNaN(amount) || amount <= 0) {
+      return { valid: false, error: 'El monto del QR de demostración no es válido.' };
     }
 
-    return {
-      valid: true,
-      payload: {
-        merchantId: parsed.merchantId || 'UNKNOWN',
-        merchantName: parsed.merchantName,
-        amount: parsed.amount,
-        currency: parsed.currency || 'MXN',
-        description: parsed.description || 'Pago',
-        reference: parsed.reference || generateReference(),
-      },
+    const payload: QRPayload = {
+      merchantId: 'DEMO_MERCHANT',
+      merchantName: 'Comercio de Demostración',
+      amount,
+      currency: 'USD',
+      description: 'Pago de prueba',
+      reference: `DEMO_${Date.now()}`,
     };
-  } catch {
-    return { valid: false, error: 'JSON inválido en código QR' };
-  }
-}
-
-function parseDemoQR(data: string): QRValidationResult {
-  const merchantKey = data.replace('DEMO_', '') as keyof typeof DEMO_MERCHANTS;
-  const merchant = DEMO_MERCHANTS[merchantKey];
-
-  if (!merchant) {
-    return { valid: false, error: 'Comercio de demo no encontrado' };
+    return { valid: true, type: 'payment', payload };
   }
 
-  return { valid: true, payload: merchant };
-}
-
-function buildGenericPayload(rawData: string): QRPayload {
-  // Para QR reales escaneados en producción/demo
-  const amount = extractAmountFromRaw(rawData) || 99.99;
-  return {
-    merchantId: 'GEN_' + rawData.slice(0, 6).toUpperCase(),
-    merchantName: 'Comercio',
-    amount,
-    currency: 'MXN',
-    description: 'Pago QR',
-    reference: generateReference(),
-  };
-}
-
-function extractAmountFromRaw(data: string): number | null {
-  const match = data.match(/(\d+\.?\d*)/);
-  if (match) {
-    const num = parseFloat(match[1]);
-    if (num > 0 && num < 100000) return num;
+  function buildGenericPayload(rawData: string): QRPayload {
+    // Para QR reales escaneados en producción/demo
+    // FIX: Default amount changed from 99.99 to 0
+    const amount = extractAmountFromRaw(rawData) || 0;
+    return {
+      merchantId: 'GEN_' + rawData.slice(0, 6).toUpperCase(),
+      merchantName: 'Comercio Genérico',
+      amount,
+      currency: 'MXN',
+      description: 'Pago desde QR genérico',
+      reference: generateReference(),
+    };
   }
-  return null;
-}
 
-function generateReference(): string {
-  return 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  function extractAmountFromRaw(data: string): number | null {
+    const match = data.match(/(\d+\.?\d*)/);
+    if (match) {
+      const num = parseFloat(match[1]);
+      if (num > 0 && num < 100000) return num;
+    }
+    return null;
+  }
+
+  function generateReference(): string {
+    return 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
 }

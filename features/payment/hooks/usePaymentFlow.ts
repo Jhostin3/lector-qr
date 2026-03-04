@@ -1,5 +1,9 @@
 import { useState, useCallback } from 'react';
-import { createPaymentIntent, confirmPayment, cancelPaymentIntent } from '../../../services/paymentService';
+import {
+  createPaymentIntent,
+  confirmPayment,
+  cancelPaymentIntent,
+} from '../../../services/paymentService';
 import type { PaymentIntent, PaymentResult } from '../../../services/paymentService';
 import type { QRPayload } from '../../../services/qrService';
 import { useHaptics } from '../../../shared/hooks/useHaptics';
@@ -17,7 +21,7 @@ interface UsePaymentFlowResult {
   paymentIntent: PaymentIntent | null;
   paymentResult: PaymentResult | null;
   errorMessage: string | null;
-  initializePayment: (payload: QRPayload) => Promise<void>;
+  initializePayment: (payload: QRPayload, amount?: number) => Promise<void>; // Modified to accept optional amount
   confirmAndPay: () => Promise<void>;
   resetFlow: () => void;
   cancelFlow: () => Promise<void>;
@@ -30,7 +34,7 @@ export function usePaymentFlow(): UsePaymentFlowResult {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { successNotification, errorNotification, mediumImpact } = useHaptics();
 
-  const initializePayment = useCallback(async (payload: QRPayload) => {
+  const initializePayment = useCallback(async (payload: QRPayload, amount?: number) => { // Modified to accept optional amount
     setFlowState('creating_intent');
     setPaymentIntent(null);
     setPaymentResult(null);
@@ -38,7 +42,7 @@ export function usePaymentFlow(): UsePaymentFlowResult {
 
     try {
       mediumImpact();
-      const intent = await createPaymentIntent(payload);
+      const intent = await createPaymentIntent(payload, amount); // Pass amount to createPaymentIntent
       setPaymentIntent(intent);
       setFlowState('awaiting_confirmation');
     } catch (err) {
@@ -55,7 +59,7 @@ export function usePaymentFlow(): UsePaymentFlowResult {
     mediumImpact();
 
     try {
-      const result = await confirmPayment(paymentIntent.id);
+      const result = await confirmPayment(paymentIntent); // Pass the whole intent
       setPaymentResult(result);
 
       if (result.success) {
