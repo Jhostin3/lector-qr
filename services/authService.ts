@@ -32,9 +32,20 @@ async function fetchProfile(userId: string): Promise<UserProfile | null> {
 
 // ── Funciones públicas ────────────────────────────────────────────────────────
 
+function translateAuthError(message: string): string {
+  if (message.includes('email rate limit')) return 'Demasiados intentos. Espera unos minutos e intenta de nuevo.';
+  if (message.includes('over_email_send_rate_limit')) return 'Límite de emails alcanzado. Espera unos minutos.';
+  if (message.includes('Invalid login credentials')) return 'Correo o contraseña incorrectos.';
+  if (message.includes('User already registered')) return 'Ya existe una cuenta con ese correo.';
+  if (message.includes('Password should be at least')) return 'La contraseña debe tener al menos 6 caracteres.';
+  if (message.includes('Unable to validate email address')) return 'El correo no es válido.';
+  if (message.includes('Email not confirmed')) return 'Confirma tu correo antes de iniciar sesión.';
+  return message;
+}
+
 export async function signIn(email: string, password: string): Promise<UserProfile> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(translateAuthError(error.message));
 
   const profile = await fetchProfile(data.user.id);
   if (!profile) throw new Error('Perfil no encontrado. Contacta al soporte.');
@@ -48,8 +59,12 @@ export async function signUp(
   password: string,
   role: UserRole
 ): Promise<UserProfile> {
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name, role } },
+  });
+  if (error) throw new Error(translateAuthError(error.message));
   if (!data.user) throw new Error('No se pudo crear la cuenta');
 
   const { error: profileError } = await supabase.from('profiles').insert({
