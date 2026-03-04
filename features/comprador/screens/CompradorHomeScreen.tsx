@@ -78,13 +78,14 @@ export default function CompradorHomeScreen() {
   const handleGenerateQR = () => {
     const amount = parseFloat(amountInput);
     if (!amount || amount <= 0) return;
+    if (!user) return; // guardia: user puede ser null si el perfil no cargó aún
 
     const payload: QRPayload = {
-      merchantId: user!.id,
-      merchantName: user!.name,
+      merchantId: user.id,
+      merchantName: user.name,
       amount,
       currency: 'MXN',
-      description: `Pago de ${user!.name}`,
+      description: `Pago de ${user.name}`,
       reference: `REF-${generateShortId()}`,
     };
     setQrPayload(JSON.stringify(payload));
