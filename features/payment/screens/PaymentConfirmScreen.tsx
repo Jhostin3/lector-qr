@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   SafeAreaView,
   StyleSheet,
   ActivityIndicator,
-  TextInput, // Import TextInput
+  TextInput,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { usePaymentFlow } from '../hooks/usePaymentFlow';
@@ -22,9 +22,11 @@ export default function PaymentConfirmScreen() {
 
   const payload: QRPayload | null = rawPayload ? JSON.parse(rawPayload) : null;
 
-  // State for the amount input
-  const [amount, setAmount] = useState(payload?.amount.toString() || '');
-  const [isAmountEditable, setIsAmountEditable] = useState(false);
+  const [amount, setAmount] = useState(payload?.amount?.toString() ?? '0');
+  const [isAmountFocused, setIsAmountFocused] = useState(false);
+
+  // Ref para disparar confirmación automática tras re-inicializar con nuevo monto
+  const confirmAfterInit = useRef(false);
 
   const {
     flowState,
@@ -36,24 +38,32 @@ export default function PaymentConfirmScreen() {
     cancelFlow,
   } = usePaymentFlow();
 
-  // Initialize the Payment Intent when the screen mounts
+  // Crear el intent al montar con el monto del QR
   useEffect(() => {
     if (payload) {
-      initializePayment(payload, parseFloat(amount));
+      initializePayment(payload, parseFloat(amount) || payload.amount);
     }
   }, []);
 
-  // Navigate to success/error when the flow ends
+  // Auto-confirmar si se re-inicializó por cambio de monto
+  useEffect(() => {
+    if (flowState === 'awaiting_confirmation' && confirmAfterInit.current) {
+      confirmAfterInit.current = false;
+      confirmAndPay();
+    }
+  }, [flowState]);
+
+  // Navegar a éxito/error al terminar el flujo
   useEffect(() => {
     if (flowState === 'success' && paymentResult) {
       router.replace({
         pathname: '/payment/success',
         params: {
-          transactionId: paymentResult.transactionId,
-          completedAt: paymentResult.completedAt?.toISOString(),
-          merchantName: payload?.merchantName,
-          amount: amount,
-          currency: payload?.currency,
+          transactionId: paymentResult.transactionId ?? '',
+          completedAt: paymentResult.completedAt?.toISOString() ?? '',
+          merchantName: payload?.merchantName ?? '',
+          amount,
+          currency: payload?.currency ?? 'MXN',
         },
       });
     } else if (flowState === 'error') {
@@ -64,24 +74,30 @@ export default function PaymentConfirmScreen() {
     }
   }, [flowState]);
 
-  const handleCancel = async () => {
-    await cancelFlow();
-    router.replace('/');
-  };
-
   const handleAmountChange = (text: string) => {
-    // Allow only numbers and a single decimal point
-    if (/^\d*\.?\d*$/.test(text)) {
+    if (/^\d*\.?\d{0,2}$/.test(text)) {
       setAmount(text);
     }
   };
 
   const handleConfirmPayment = () => {
-    if (payload) {
-      initializePayment(payload, parseFloat(amount));
+    if (!payload) return;
+    const finalAmount = parseFloat(amount) || payload.amount;
+
+    if (!paymentIntent || Math.abs(finalAmount - paymentIntent.amount) > 0.001) {
+      // El monto cambió: re-crear intent con nuevo valor, luego auto-confirmar
+      confirmAfterInit.current = true;
+      initializePayment(payload, finalAmount);
+    } else {
+      // Monto sin cambios: confirmar directamente
+      confirmAndPay();
     }
-    confirmAndPay();
-  }
+  };
+
+  const handleCancel = async () => {
+    await cancelFlow();
+    router.replace('/');
+  };
 
   if (!payload) {
     return (
@@ -96,6 +112,8 @@ export default function PaymentConfirmScreen() {
   const isCreatingIntent = flowState === 'creating_intent';
   const isProcessing = flowState === 'processing';
   const isReady = flowState === 'awaiting_confirmation';
+  const isBusy = isCreatingIntent || isProcessing;
+  const canPay = !isBusy && !!parseFloat(amount);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -104,7 +122,6 @@ export default function PaymentConfirmScreen() {
           contentContainerStyle={[styles.scrollContent, { padding: spacing.lg }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
           <View style={styles.headerSection}>
             <Text style={[typography.headingLarge, { color: colors.textPrimary }]}>
               Confirmar pago
@@ -114,7 +131,6 @@ export default function PaymentConfirmScreen() {
             </Text>
           </View>
 
-          {/* Merchant Card */}
           <MerchantCard
             merchantName={payload.merchantName}
             description={payload.description}
@@ -123,96 +139,67 @@ export default function PaymentConfirmScreen() {
             currency={payload.currency}
           />
 
-          {/* Amount Input */}
+          {/* Monto editable */}
           <View style={{ marginTop: spacing.lg }}>
-            <Text style={[typography.label, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
+            <Text style={[typography.labelMedium, { color: colors.textSecondary, marginBottom: spacing.sm }]}>
               Monto a pagar ({payload.currency})
             </Text>
             <TextInput
               style={[
-                typography.headingLarge, // Use a larger font for the amount
+                typography.headingLarge,
                 {
                   color: colors.textPrimary,
                   backgroundColor: colors.surface,
                   borderRadius: borderRadius.md,
                   padding: spacing.md,
-                  borderWidth: 1,
-                  borderColor: isAmountEditable ? colors.primary : colors.border,
+                  borderWidth: 1.5,
+                  borderColor: isAmountFocused ? colors.primary : colors.border,
                 },
               ]}
               value={amount}
               onChangeText={handleAmountChange}
-              keyboardType="numeric"
-              onFocus={() => setIsAmountEditable(true)}
-              onBlur={() => setIsAmountEditable(false)}
+              keyboardType="decimal-pad"
+              onFocus={() => setIsAmountFocused(true)}
+              onBlur={() => setIsAmountFocused(false)}
+              editable={!isBusy}
+              placeholder="0.00"
+              placeholderTextColor={colors.textTertiary}
             />
           </View>
 
-
-          {/* Payment Intent Status */}
+          {/* Estado del Intent */}
           {isCreatingIntent && (
-            <View
-              style={[
-                styles.intentStatus,
-                { backgroundColor: colors.primary + '12', borderRadius: borderRadius.md, marginTop: spacing.md },
-              ]}
-            >
+            <View style={[styles.statusBadge, { backgroundColor: colors.primary + '12', borderRadius: borderRadius.md, marginTop: spacing.md }]}>
               <ActivityIndicator size="small" color={colors.primary} />
-              <Text
-                style={[typography.bodySmall, { color: colors.primary, marginLeft: 10 }]}
-              >
-                Generando intent de pago seguro…
+              <Text style={[typography.bodySmall, { color: colors.primary, marginLeft: 10 }]}>
+                Generando sesión de pago…
               </Text>
             </View>
           )}
 
           {isReady && paymentIntent && (
-            <View
-              style={[
-                styles.intentStatus,
-                { backgroundColor: colors.successBackground, borderRadius: borderRadius.md, marginTop: spacing.md },
-              ]}
-            >
+            <View style={[styles.statusBadge, { backgroundColor: colors.successBackground, borderRadius: borderRadius.md, marginTop: spacing.md }]}>
               <Text style={{ fontSize: 14 }}>🔒</Text>
-              <Text
-                style={[typography.bodySmall, { color: colors.success, marginLeft: 8 }]}
-              >
-                Sesión segura establecida · {paymentIntent.id.slice(-8).toUpperCase()}
+              <Text style={[typography.bodySmall, { color: colors.success, marginLeft: 8 }]}>
+                Sesión segura · {paymentIntent.id.slice(-8).toUpperCase()}
               </Text>
             </View>
           )}
 
-          {/* Security Note */}
-          <View
-            style={[
-              styles.securityNote,
-              { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderColor: colors.border, marginTop: spacing.md },
-            ]}
-          >
+          <View style={[styles.securityNote, { backgroundColor: colors.surface, borderRadius: borderRadius.md, borderColor: colors.border, marginTop: spacing.md }]}>
             <Text style={[typography.bodySmall, { color: colors.textTertiary, textAlign: 'center', lineHeight: 18 }]}>
-              🔐 Transacción cifrada de extremo a extremo. Tu información financiera está protegida.
+              🔐 Transacción cifrada de extremo a extremo
             </Text>
           </View>
         </ScrollView>
 
-        {/* Actions */}
-        <View
-          style={[
-            styles.actions,
-            {
-              backgroundColor: colors.background,
-              borderTopColor: colors.border,
-              paddingHorizontal: spacing.lg,
-              paddingBottom: spacing.xl,
-            },
-          ]}
-        >
+        <View style={[styles.actions, { backgroundColor: colors.background, borderTopColor: colors.border, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }]}>
           <Button
             label="Pagar ahora"
-            onPress={handleConfirmPayment} // Use the new handler
+            onPress={handleConfirmPayment}
             fullWidth
             size="lg"
-            disabled={!isReady || !parseFloat(amount)}
+            disabled={!canPay}
             loading={isProcessing}
           />
           <Button
@@ -221,18 +208,14 @@ export default function PaymentConfirmScreen() {
             variant="ghost"
             fullWidth
             size="md"
-            disabled={isProcessing}
+            disabled={isBusy}
             style={{ marginTop: spacing.sm }}
           />
         </View>
       </SafeAreaView>
 
-      {/* Processing Overlay */}
       {isProcessing && (
-        <LoadingOverlay
-          message="Procesando pago"
-          submessage="Autorizando con tu banco…"
-        />
+        <LoadingOverlay message="Procesando pago" submessage="Autorizando con tu banco…" />
       )}
     </View>
   );
@@ -244,17 +227,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 20 },
   headerSection: { marginBottom: 20 },
-  intentStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
-  securityNote: {
-    padding: 14,
-    borderWidth: 1,
-  },
-  actions: {
-    borderTopWidth: 1,
-    paddingTop: 16,
-  },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+  securityNote: { padding: 14, borderWidth: 1 },
+  actions: { borderTopWidth: 1, paddingTop: 16 },
 });
