@@ -11,9 +11,11 @@ import { useFocusEffect } from 'expo-router';
 import { useQRScanner } from '../hooks/useQRScanner';
 import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
+import { useAuth } from '../../../shared/hooks/useAuth';
 
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
+  const { logout, user } = useAuth();
 
   const { scannerState, permission, requestPermission, onBarcodeScanned, resetScanner, lastError } =
     useQRScanner();
@@ -79,9 +81,26 @@ export default function ScannerScreen() {
         errorMessage={lastError}
       />
 
+      {/* Header con nombre de usuario y botón de salir */}
       <SafeAreaView style={styles.header}>
-        <View style={[styles.headerContent, { backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: borderRadius.full }]}>
-          <Text style={[typography.headingSmall, { color: 'white' }]}>El Gran Checkout</Text>
+        <View style={[styles.headerContent, { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: borderRadius.full }]}>
+          <View style={styles.headerInner}>
+            <View>
+              <Text style={[typography.headingSmall, { color: 'white' }]}>El Gran Checkout</Text>
+              {user?.name ? (
+                <Text style={[typography.bodySmall, { color: 'rgba(255,255,255,0.7)' }]}>
+                  🏪 {user.name.split(' ')[0]}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={logout}
+              activeOpacity={0.7}
+              style={[styles.logoutBtn, { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: borderRadius.md }]}
+            >
+              <Text style={[typography.labelSmall, { color: 'rgba(255,255,255,0.9)' }]}>Salir</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -103,7 +122,9 @@ const styles = StyleSheet.create({
   permissionEmoji: { fontSize: 64, marginBottom: 16 },
   permissionButton: { paddingVertical: 14, paddingHorizontal: 32, alignSelf: 'stretch', alignItems: 'center' },
   header: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingTop: 8 },
-  headerContent: { paddingHorizontal: 20, paddingVertical: 8, marginTop: 8 },
+  headerContent: { paddingHorizontal: 20, paddingVertical: 10, marginTop: 8 },
+  headerInner: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  logoutBtn: { paddingHorizontal: 12, paddingVertical: 6 },
   footer: { position: 'absolute', bottom: 60, left: 32, right: 32, alignItems: 'center' },
   footerHint: { paddingHorizontal: 20, paddingVertical: 12 },
 });
