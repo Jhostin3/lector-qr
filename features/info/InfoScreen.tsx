@@ -1,16 +1,14 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppTheme } from '../../shared/hooks/useAppTheme'; // Corrected Path
-import { typography } from '../../theme'; // Corrected Path
+import { useAppTheme } from '../../shared/hooks/useAppTheme';
 
 const InfoScreen = () => {
-  // The useAppTheme hook is the correct one, not useTheme
-  const { colors, isDark } = useAppTheme(); 
+  const { colors, typography, spacing, borderRadius } = useAppTheme();
   const params = useLocalSearchParams();
 
   let title = 'Información';
-  let data: { [key: string]: string } = {};
+  let data: Record<string, string> = {};
 
   try {
     title = params.title ? (params.title as string) : 'Información';
@@ -18,30 +16,41 @@ const InfoScreen = () => {
       data = JSON.parse(params.data);
     }
   } catch (e) {
-    console.error("Error parsing info data:", e);
+    console.error('Error parsing info data:', e);
   }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Use Stack.Screen to dynamically set the header title */}
-      <Stack.Screen 
-        options={{ 
-          title, 
-          headerTintColor: colors.text, 
-          headerStyle: { backgroundColor: colors.card },
-          headerShown: true, // Make sure header is visible
-        }} 
+      <Stack.Screen
+        options={{
+          title,
+          headerTintColor: colors.textPrimary,
+          headerStyle: { backgroundColor: colors.surface },
+          headerShown: true,
+        }}
       />
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: borderRadius.lg }]}>
         {Object.entries(data).length > 0 ? (
-          Object.entries(data).map(([key, value]) => (
-            <View key={key} style={[styles.row, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.keyText, { color: colors.text }]}>{key}:</Text>
-              <Text style={[styles.valueText, { color: colors.primary }]}>{value}</Text>
+          Object.entries(data).map(([key, value], index, arr) => (
+            <View
+              key={key}
+              style={[
+                styles.row,
+                index < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+              ]}
+            >
+              <Text style={[typography.labelMedium, { color: colors.textSecondary, flex: 1 }]}>
+                {key}
+              </Text>
+              <Text style={[typography.bodyMedium, { color: colors.primary, flex: 2, textAlign: 'right' }]}>
+                {value}
+              </Text>
             </View>
           ))
         ) : (
-          <Text style={{ color: colors.text }}>No se encontró información para mostrar.</Text>
+          <Text style={[typography.bodyMedium, { color: colors.textSecondary }]}>
+            No se encontró información para mostrar.
+          </Text>
         )}
       </View>
     </SafeAreaView>
@@ -55,14 +64,11 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: 20,
-    borderRadius: 12,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 3,
   },
   row: {
@@ -70,18 +76,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
-  keyText: {
-    ...typography.body,
-    fontWeight: '600',
-    flex: 1,
-  },
-  valueText: {
-    ...typography.body,
-    flex: 2,
-    textAlign: 'right',
-    fontWeight: '500',
   },
 });
 

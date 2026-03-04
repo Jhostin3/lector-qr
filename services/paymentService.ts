@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import type { QRPayload } from './qrService';
 import { generateShortId } from '../shared/utils/formatters';
-import { sendPushNotification } from './notificationService'; // Import the function
+import { sendPushNotification } from './notificationService';
 
 export type PaymentStatus = 'idle' | 'pending' | 'processing' | 'success' | 'failed';
 
@@ -45,18 +45,16 @@ function randomDelay(range: { min: number; max: number }): Promise<void> {
 
 /**
  * Crea un Payment Intent simulado a partir del payload del QR.
- * Simula la llamada al backend que generaría un token de pago real.
  */
 export async function createPaymentIntent(
   payload: QRPayload,
-  amount?: number // Add optional amount parameter
+  amount?: number
 ): Promise<PaymentIntent> {
-  // Simular latencia de red
   await randomDelay(NETWORK_LATENCY);
 
   return {
     id: `pi_${generateShortId()}`,
-    amount: amount || payload.amount, // Use provided amount or fallback to payload amount
+    amount: amount || payload.amount,
     currency: payload.currency,
     merchantId: payload.merchantId,
     merchantName: payload.merchantName,
@@ -69,22 +67,24 @@ export async function createPaymentIntent(
 
 /**
  * Confirma y procesa el Payment Intent.
- * Simula la autorización bancaria, el ciclo completo de pago y guarda en Supabase.
+ * Obtiene el vendedor autenticado (seller_id) y guarda en Supabase.
  */
-export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResult> { // Changed to accept PaymentIntent
-  // Simular tiempo de procesamiento del banco
+export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResult> {
   await randomDelay(PROCESSING_LATENCY);
 
-  // Simular escenario de error ocasional
+  // Obtener el vendedor actualmente autenticado
+  const { data: { user: sellerUser } } = await supabase.auth.getUser();
+  const sellerId = sellerUser?.id ?? null;
+
   const shouldFail = Math.random() < FAILURE_RATE;
 
   if (shouldFail) {
     const error = ERROR_SCENARIOS[Math.floor(Math.random() * ERROR_SCENARIOS.length)];
 
-    // Guardar el intento de pago fallido en Supabase
     await supabase.from('payments').insert({
       merchant_id: intent.merchantId,
       merchant_name: intent.merchantName,
+      seller_id: sellerId,
       amount: intent.amount,
       currency: intent.currency,
       description: intent.description,
@@ -104,11 +104,11 @@ export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResu
   const transactionId = `txn_${generateShortId()}`;
   const completedAt = new Date();
 
-  // Guardar el pago exitoso en Supabase
   const { error } = await supabase.from('payments').insert({
     transaction_id: transactionId,
     merchant_id: intent.merchantId,
     merchant_name: intent.merchantName,
+    seller_id: sellerId,
     amount: intent.amount,
     currency: intent.currency,
     description: intent.description,
@@ -117,8 +117,6 @@ export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResu
   });
 
   if (error) {
-    // Si Supabase falla, se podría manejar el error de forma más robusta.
-    // Por ahora, solo lo mostraremos en la consola y devolveremos un error de red.
     console.error('Supabase insert error:', error);
     return {
       success: false,
@@ -127,26 +125,23 @@ export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResu
     };
   }
 
-  // After successful payment, send notifications
+  // Enviar notificaciones push tras pago exitoso
   try {
-    const { data: devices, error: devicesError } = await supabase.from('devices').select('push_token');
+    const { data: devices, error: devicesError } = await supabase.from('push_tokens').select('token');
     if (devicesError) throw devicesError;
 
-    const notificationPromises = devices.map(device => 
+    const notificationPromises = devices.map(device =>
       sendPushNotification(
-        device.push_token,
+        device.token,
         '¡Pago Recibido!',
         `Se recibió un pago de ${intent.amount} ${intent.currency} de ${intent.merchantName}.`
       )
     );
-    
+
     await Promise.all(notificationPromises);
-
   } catch (e) {
-    console.error("Error sending push notifications:", e);
-    // No detenemos el flujo por un error de notificación
+    console.error('Error sending push notifications:', e);
   }
-
 
   return {
     success: true,
@@ -160,5 +155,4 @@ export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResu
  */
 export async function cancelPaymentIntent(intentId: string): Promise<void> {
   await randomDelay({ min: 300, max: 600 });
-  // En producción: llamada al endpoint de cancelación
 }

@@ -7,14 +7,20 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
+<<<<<<< HEAD
 import { router, useFocusEffect } from 'expo-router';
+=======
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
 import { useQRScanner } from '../hooks/useQRScanner';
 import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
+import { useAuth } from '../../../shared/hooks/useAuth';
 import type { QRPayload } from '../../../services/qrService';
 
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
+<<<<<<< HEAD
+  const { logout, user } = useAuth();
 
   const handleValidQR = (payload: QRPayload) => {
     router.push({
@@ -27,15 +33,15 @@ export default function ScannerScreen() {
     onValidQR: handleValidQR,
   });
 
-  // Resetear el scanner cada vez que esta pantalla gana foco.
-  // Cubre el caso en que el usuario vuelve atrás desde la pantalla de pago.
   useFocusEffect(
     useCallback(() => {
       resetScanner();
     }, [resetScanner])
   );
+=======
+  const { permission, requestPermission, onBarcodeScanned, state } = useQRScanner({});
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
 
-  // ── Estado: esperando permisos ──────────────────────────────────────────────
   if (!permission) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -46,7 +52,6 @@ export default function ScannerScreen() {
     );
   }
 
-  // ── Estado: permiso denegado ────────────────────────────────────────────────
   if (!permission.granted) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -85,7 +90,6 @@ export default function ScannerScreen() {
               Permitir acceso
             </Text>
           </TouchableOpacity>
-
           {permission.canAskAgain === false && (
             <Text
               style={[
@@ -101,7 +105,10 @@ export default function ScannerScreen() {
     );
   }
 
+<<<<<<< HEAD
+=======
   // ── Estado: cámara activa ───────────────────────────────────────────────────
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
   return (
     <View style={styles.root}>
       <CameraView
@@ -110,6 +117,7 @@ export default function ScannerScreen() {
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={state === 'scanning' ? onBarcodeScanned : undefined}
       />
+<<<<<<< HEAD
 
       <ScannerOverlay
         isDetected={state === 'detected'}
@@ -117,21 +125,37 @@ export default function ScannerScreen() {
         errorMessage={lastError}
       />
 
-      {/* Header */}
+      {/* Header con nombre de usuario y botón de salir */}
       <SafeAreaView style={styles.header}>
         <View
           style={[
             styles.headerContent,
-            { backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: borderRadius.full },
+            { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: borderRadius.full },
           ]}
         >
-          <Text style={[typography.headingSmall, { color: 'white' }]}>
-            El Gran Checkout
-          </Text>
+          <View style={styles.headerInner}>
+            <View>
+              <Text style={[typography.headingSmall, { color: 'white' }]}>El Gran Checkout</Text>
+              {user?.name ? (
+                <Text style={[typography.bodySmall, { color: 'rgba(255,255,255,0.7)' }]}>
+                  🏪 {user.name.split(' ')[0]}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={logout}
+              activeOpacity={0.7}
+              style={[
+                styles.logoutBtn,
+                { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: borderRadius.md },
+              ]}
+            >
+              <Text style={[typography.labelSmall, { color: 'rgba(255,255,255,0.9)' }]}>Salir</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
-      {/* Footer hint */}
       <View style={styles.footer}>
         <View
           style={[
@@ -142,15 +166,23 @@ export default function ScannerScreen() {
           <Text
             style={[typography.bodySmall, { color: 'rgba(255,255,255,0.7)', textAlign: 'center' }]}
           >
-            Asegúrate de que el QR esté bien iluminado y dentro del marco
+            Apunta al código QR de pago dentro del marco
           </Text>
         </View>
       </View>
+=======
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
+  root: { flex: 1, backgroundColor: 'black' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  permissionContainer: { alignItems: 'center', maxWidth: 320 },
+  permissionEmoji: { fontSize: 64, marginBottom: 16 },
+=======
   root: {
     flex: 1,
     backgroundColor: 'black',
@@ -169,31 +201,17 @@ const styles = StyleSheet.create({
     fontSize: 64,
     marginBottom: 16,
   },
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
   permissionButton: {
     paddingVertical: 14,
     paddingHorizontal: 32,
     alignSelf: 'stretch',
     alignItems: 'center',
   },
-  header: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    alignItems: 'center',
-    paddingTop: 8,
-  },
-  headerContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    marginTop: 8,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 60,
-    left: 32, right: 32,
-    alignItems: 'center',
-  },
-  footerHint: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingTop: 8 },
+  headerContent: { paddingHorizontal: 20, paddingVertical: 10, marginTop: 8 },
+  headerInner: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  logoutBtn: { paddingHorizontal: 12, paddingVertical: 6 },
+  footer: { position: 'absolute', bottom: 60, left: 32, right: 32, alignItems: 'center' },
+  footerHint: { paddingHorizontal: 20, paddingVertical: 12 },
 });
