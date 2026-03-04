@@ -67,11 +67,11 @@ export async function signUp(
   if (error) throw new Error(translateAuthError(error.message));
   if (!data.user) throw new Error('No se pudo crear la cuenta');
 
-  const { error: profileError } = await supabase.from('profiles').insert({
+  const { error: profileError } = await supabase.from('profiles').upsert({
     id: data.user.id,
     name,
     role,
-  });
+  }, { onConflict: 'id' });
   if (profileError) throw new Error('Error al guardar el perfil: ' + profileError.message);
 
   return { id: data.user.id, name, email, role };
