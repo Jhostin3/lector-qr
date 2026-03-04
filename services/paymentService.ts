@@ -129,12 +129,12 @@ export async function confirmPayment(intent: PaymentIntent): Promise<PaymentResu
 
   // After successful payment, send notifications
   try {
-    const { data: devices, error: devicesError } = await supabase.from('devices').select('push_token');
+    const { data: devices, error: devicesError } = await supabase.from('push_tokens').select('token');
     if (devicesError) throw devicesError;
 
     const notificationPromises = devices.map(device => 
       sendPushNotification(
-        device.push_token,
+        device.token,
         '¡Pago Recibido!',
         `Se recibió un pago de ${intent.amount} ${intent.currency} de ${intent.merchantName}.`
       )

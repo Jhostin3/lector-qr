@@ -115,3 +115,21 @@ export function useNotifications() {
     notification,
   };
 }
+
+/**
+ * Envía una notificación push a través de la API de Expo.
+ * Usada internamente por paymentService tras un pago exitoso.
+ */
+export async function sendPushNotification(
+  token: string,
+  title: string,
+  body: string
+): Promise<void> {
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: token, title, body, sound: 'default' }),
+  }).catch(() => {
+    // No interrumpir el flujo si la notificación falla
+  });
+}
