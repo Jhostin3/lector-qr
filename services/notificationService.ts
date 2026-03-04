@@ -4,11 +4,12 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { supabase } from './supabase';
-import type { Subscription } from 'expo-modules-core';
 
-// ¿Estamos corriendo dentro de Expo Go?
-// En Expo Go SDK 53+ las push notifications fueron eliminadas.
-const IS_EXPO_GO = Constants.appOwnership === 'expo';
+// Push notifications no están disponibles en Expo Go (SDK 53+) ni en web
+const IS_WEB = Platform.OS === 'web';
+// appOwnership === 'expo' indica Expo Go (deprecated en tipos pero sigue funcionando)
+const IS_EXPO_GO = !IS_WEB && Constants.executionEnvironment === 'storeClient';
+const NOTIFICATIONS_SUPPORTED = !IS_EXPO_GO && !IS_WEB;
 
 // El projectId debe ser un UUID real, no el placeholder
 const PROJECT_ID: string | undefined = Constants.expoConfig?.extra?.eas?.projectId;
@@ -16,11 +17,13 @@ const HAS_VALID_PROJECT_ID =
   typeof PROJECT_ID === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(PROJECT_ID);
 
-// Solo configurar el handler si no estamos en Expo Go
-if (!IS_EXPO_GO) {
+// Solo configurar el handler en entornos con soporte real
+if (NOTIFICATIONS_SUPPORTED) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     }),
@@ -29,10 +32,10 @@ if (!IS_EXPO_GO) {
 
 /**
  * Registra el dispositivo para notificaciones push y guarda el token en Supabase.
- * En Expo Go o sin projectId válido, retorna undefined silenciosamente.
+ * En Expo Go, web o sin projectId válido, retorna undefined silenciosamente.
  */
 async function registerForPushNotificationsAsync(): Promise<string | undefined> {
-  if (IS_EXPO_GO || !HAS_VALID_PROJECT_ID) return undefined;
+  if (!NOTIFICATIONS_SUPPORTED || !HAS_VALID_PROJECT_ID) return undefined;
   if (!Device.isDevice) return undefined;
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -66,16 +69,16 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
 
 /**
  * Hook para gestionar el registro de notificaciones y las interacciones.
- * Es seguro en Expo Go: no hace nada si no hay soporte.
+ * Es seguro en Expo Go y web: no hace nada si no hay soporte.
  */
 export function useNotifications() {
-  const [expoPushToken, setExpoPushToken] = useState<string>();
-  const [notification, setNotification] = useState<Notifications.Notification | undefined>();
-  const notificationListener = useRef<Subscription>();
-  const responseListener = useRef<Subscription>();
+  const [expoPushToken, setExpoPushToken] = useState<string | undefined>(undefined);
+  const [notification, setNotification] = useState<Notifications.Notification | undefined>(undefined);
+  const notificationListener = useRef<Notifications.EventSubscription | null>(null);
+  const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
-    if (IS_EXPO_GO || !HAS_VALID_PROJECT_ID) return;
+    if (!NOTIFICATIONS_SUPPORTED || !HAS_VALID_PROJECT_ID) return;
 
     registerForPushNotificationsAsync().then(async (token) => {
       if (token) {
@@ -112,7 +115,7 @@ export async function sendPushNotification(
   title: string,
   body: string
 ): Promise<void> {
-  if (IS_EXPO_GO || !HAS_VALID_PROJECT_ID) return;
+  if (!NOTIFICATIONS_SUPPORTED || !HAS_VALID_PROJECT_ID) return;
 
   await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
