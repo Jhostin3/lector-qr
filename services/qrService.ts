@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { URL } from 'react-native-url-polyfill';
 
+// Add a new comment for the first commit
 const VALID_PREFIXES = ['pay://', 'checkout://'];
 
 export interface QRPayload {

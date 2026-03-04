@@ -1,3 +1,4 @@
+// Add a new comment for the seventh commit
 import { supabase } from './supabase';
 
 export type UserRole = 'vendedor' | 'comprador';
