@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   SafeAreaView,
 } from 'react-native';
+import { CameraView } from 'expo-camera';
 import { useQRScanner } from '../hooks/useQRScanner';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
 
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
-  const { permission, requestPermission } = useQRScanner({});
+  const { permission, requestPermission, onBarcodeScanned, state } = useQRScanner({});
 
   // ── Estado: esperando permisos ──────────────────────────────────────────────
   if (!permission) {
@@ -79,10 +80,24 @@ export default function ScannerScreen() {
     );
   }
 
-  return <View />;
+  // ── Estado: cámara activa ───────────────────────────────────────────────────
+  return (
+    <View style={styles.root}>
+      <CameraView
+        style={StyleSheet.absoluteFillObject}
+        facing="back"
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        onBarcodeScanned={state === 'scanning' ? onBarcodeScanned : undefined}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
   centered: {
     flex: 1,
     alignItems: 'center',
