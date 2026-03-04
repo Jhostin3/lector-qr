@@ -8,11 +8,12 @@ import {
 } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { useQRScanner } from '../hooks/useQRScanner';
+import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
 
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
-  const { permission, requestPermission, onBarcodeScanned, state } = useQRScanner({});
+  const { permission, requestPermission, onBarcodeScanned, state, lastError } = useQRScanner({});
 
   // ── Estado: esperando permisos ──────────────────────────────────────────────
   if (!permission) {
@@ -88,6 +89,12 @@ export default function ScannerScreen() {
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={state === 'scanning' ? onBarcodeScanned : undefined}
+      />
+
+      <ScannerOverlay
+        isDetected={state === 'detected'}
+        hasError={state === 'error'}
+        errorMessage={lastError}
       />
     </View>
   );
