@@ -7,7 +7,10 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
+<<<<<<< HEAD
 import { router, useFocusEffect } from 'expo-router';
+=======
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
 import { useQRScanner } from '../hooks/useQRScanner';
 import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
@@ -16,6 +19,7 @@ import type { QRPayload } from '../../../services/qrService';
 
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
+<<<<<<< HEAD
   const { logout, user } = useAuth();
 
   const handleValidQR = (payload: QRPayload) => {
@@ -34,6 +38,9 @@ export default function ScannerScreen() {
       resetScanner();
     }, [resetScanner])
   );
+=======
+  const { permission, requestPermission, onBarcodeScanned, state } = useQRScanner({});
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
 
   if (!permission) {
     return (
@@ -98,6 +105,10 @@ export default function ScannerScreen() {
     );
   }
 
+<<<<<<< HEAD
+=======
+  // ── Estado: cámara activa ───────────────────────────────────────────────────
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
   return (
     <View style={styles.root}>
       <CameraView
@@ -106,6 +117,7 @@ export default function ScannerScreen() {
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={state === 'scanning' ? onBarcodeScanned : undefined}
       />
+<<<<<<< HEAD
 
       <ScannerOverlay
         isDetected={state === 'detected'}
@@ -158,15 +170,38 @@ export default function ScannerScreen() {
           </Text>
         </View>
       </View>
+=======
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
   root: { flex: 1, backgroundColor: 'black' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   permissionContainer: { alignItems: 'center', maxWidth: 320 },
   permissionEmoji: { fontSize: 64, marginBottom: 16 },
+=======
+  root: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  permissionContainer: {
+    alignItems: 'center',
+    maxWidth: 320,
+  },
+  permissionEmoji: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+>>>>>>> 5a6281f (feat(scanner): add camera view and barcode scanner)
   permissionButton: {
     paddingVertical: 14,
     paddingHorizontal: 32,
