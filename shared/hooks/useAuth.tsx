@@ -12,8 +12,8 @@ import {
 interface AuthContextValue {
   user: UserProfile | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<void>;
+  login: (email: string, password: string) => Promise<UserProfile>;
+  register: (name: string, email: string, password: string, role: UserRole) => Promise<UserProfile>;
   logout: () => Promise<void>;
 }
 
@@ -42,9 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<UserProfile> => {
     const profile = await signIn(email, password);
     setUser(profile);
+    return profile;
   };
 
   const register = async (
@@ -52,9 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     role: UserRole
-  ) => {
+  ): Promise<UserProfile> => {
     const profile = await signUp(name, email, password, role);
     setUser(profile);
+    return profile;
   };
 
   const logout = async () => {

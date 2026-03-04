@@ -32,8 +32,8 @@ export default function LoginScreen() {
     setError(null);
     setIsLoading(true);
     try {
-      await login(email.trim().toLowerCase(), password);
-      // La navegación la maneja app/index.tsx al detectar el cambio de user
+      const profile = await login(email.trim().toLowerCase(), password);
+      router.replace(profile.role === 'comprador' ? '/home' : '/scanner');
     } catch (e: any) {
       setError(e.message ?? 'Error al iniciar sesión');
     } finally {
