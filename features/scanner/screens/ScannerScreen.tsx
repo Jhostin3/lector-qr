@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useQRScanner } from '../hooks/useQRScanner';
 import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
@@ -23,9 +23,17 @@ export default function ScannerScreen() {
     });
   };
 
-  const { permission, requestPermission, onBarcodeScanned, state, lastError } = useQRScanner({
+  const { permission, requestPermission, onBarcodeScanned, state, lastError, resetScanner } = useQRScanner({
     onValidQR: handleValidQR,
   });
+  
+  // Resetear el scanner cada vez que esta pantalla gana foco.
+  // Cubre el caso en que el usuario vuelve atrás desde la pantalla de pago.
+  useFocusEffect(
+    useCallback(() => {
+      resetScanner();
+    }, [resetScanner])
+  );
 
   // ── Estado: esperando permisos ──────────────────────────────────────────────
   if (!permission) {
