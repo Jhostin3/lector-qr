@@ -96,6 +96,36 @@ export default function ScannerScreen() {
         hasError={state === 'error'}
         errorMessage={lastError}
       />
+
+      {/* Header */}
+      <SafeAreaView style={styles.header}>
+        <View
+          style={[
+            styles.headerContent,
+            { backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: borderRadius.full },
+          ]}
+        >
+          <Text style={[typography.headingSmall, { color: 'white' }]}>
+            El Gran Checkout
+          </Text>
+        </View>
+      </SafeAreaView>
+
+      {/* Footer hint */}
+      <View style={styles.footer}>
+        <View
+          style={[
+            styles.footerHint,
+            { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: borderRadius.lg },
+          ]}
+        >
+          <Text
+            style={[typography.bodySmall, { color: 'rgba(255,255,255,0.7)', textAlign: 'center' }]}
+          >
+            Asegúrate de que el QR esté bien iluminado y dentro del marco
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }
@@ -124,5 +154,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     alignSelf: 'stretch',
     alignItems: 'center',
+  },
+  header: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  headerContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 60,
+    left: 32, right: 32,
+    alignItems: 'center',
+  },
+  footerHint: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
 });
