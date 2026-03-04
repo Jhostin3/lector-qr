@@ -1,87 +1,68 @@
 import { useState, useCallback, useRef } from 'react';
+import { Audio } from 'expo-av';
 import { Vibration } from 'react-native';
-import { useCameraPermissions } from 'expo-camera';
-import type { BarcodeScanningResult } from 'expo-camera';
-import { router } from 'expo-router';
-import { validateQrCode } from '../../../services/qrService';
+import { Camera, BarcodeScanningResult } from 'expo-camera';
+import { QRPayload, QRState, validateQR } from '../../../services/qrService';
 
-export type ScannerState = 'scanning' | 'detected' | 'error';
-
-interface UseQRScannerResult {
-  scannerState: ScannerState;
-  permission: ReturnType<typeof useCameraPermissions>[0];
-  requestPermission: () => void;
-  onBarcodeScanned: (result: BarcodeScanningResult) => void;
-  resetScanner: () => void;
-  lastError: string | null;
+interface UseQRScannerOptions {
+  onValidQR?: (payload: QRPayload) => void;
 }
 
-export function useQRScanner(): UseQRScannerResult {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [scannerState, setScannerState] = useState<ScannerState>('scanning');
+export function useQRScanner({ onValidQR }: UseQRScannerOptions) {
+  const [state, setState] = useState<QRState>('scanning');
   const [lastError, setLastError] = useState<string | null>(null);
+  const [permission, requestPermission] = Camera.useCameraPermissions();
   const isProcessing = useRef(false);
 
+  const playSound = async (soundFile: any) => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(soundFile);
+      await sound.playAsync();
+    } catch (error) {
+      console.warn('Could not play sound', error);
+    }
+  };
+
   const onBarcodeScanned = useCallback(
-    (result: BarcodeScanningResult) => {
-      if (isProcessing.current || scannerState !== 'scanning') return;
+    async (result: BarcodeScanningResult) => {
+      if (isProcessing.current || state !== 'scanning') return;
+
       isProcessing.current = true;
-      setScannerState('detected');
+      setState('detected');
 
-      const validation = validateQrCode(result.data);
+      try {
+        const payload = validateQR(result.data);
+        Vibration.vibrate(100);
+        playSound(require('../../../../assets/sounds/success.mp3'));
+        onValidQR?.(payload);
+      } catch (error: any) {
+        Vibration.vibrate([100, 200, 100]);
+        setLastError(error.message);
+        setState('error');
+        playSound(require('../../../../assets/sounds/error.mp3'));
 
-      if (validation.valid && validation.payload) {
-        Vibration.vibrate([100, 150]);
-
-        if (validation.type === 'payment') {
-          setTimeout(() => {
-            router.push({
-              pathname: '/payment/confirm',
-              params: { payload: JSON.stringify(validation.payload) },
-            });
-          }, 400);
-        } else if (validation.type === 'info') {
-          const infoPayload = validation.payload as { title: string; data: Record<string, string> };
-          setTimeout(() => {
-            router.push({
-              pathname: '/info',
-              params: {
-                title: infoPayload.title,
-                data: JSON.stringify(infoPayload.data),
-              },
-            });
-          }, 400);
-        }
-      } else {
-        Vibration.vibrate([200, 100, 200]);
-        setLastError(validation.error ?? 'QR no válido');
-        setScannerState('error');
         setTimeout(() => {
-          setScannerState('scanning');
+          setState('scanning');
           setLastError(null);
           isProcessing.current = false;
         }, 2000);
       }
     },
-    [scannerState]
+    [state, onValidQR]
   );
 
   const resetScanner = useCallback(() => {
-    setScannerState('scanning');
+    setState('scanning');
     setLastError(null);
     isProcessing.current = false;
   }, []);
 
-  const handleRequestPermission = useCallback(() => {
-    requestPermission().catch(() => {});
-  }, [requestPermission]);
-
   return {
-    scannerState,
     permission,
-    requestPermission: handleRequestPermission,
+    requestPermission,
     onBarcodeScanned,
-    resetScanner,
+    state,
     lastError,
+    resetScanner,
   };
 }
