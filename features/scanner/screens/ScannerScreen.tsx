@@ -26,7 +26,7 @@ export default function ScannerScreen() {
   const { permission, requestPermission, onBarcodeScanned, state, lastError, resetScanner } = useQRScanner({
     onValidQR: handleValidQR,
   });
-  
+
   // Resetear el scanner cada vez que esta pantalla gana foco.
   // Cubre el caso en que el usuario vuelve atrás desde la pantalla de pago.
   useFocusEffect(

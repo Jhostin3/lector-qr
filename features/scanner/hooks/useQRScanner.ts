@@ -1,60 +1,62 @@
-import { useState } from 'react';
-import { Vibration } from 'react-native';
-import { BarCodeScanningResult } from 'expo-camera/next';
-import { router } from 'expo-router';
-import { validateQrCode, ParsedPayload } from '../../../services/qrService'; // Correct import name
+import { useState, useCallback } from 'react';
+import { Audio } from 'expo-av';
+import { BarcodeScanningResult, Camera } from 'expo-camera';
+import { Alert } from 'react-native';
+import { QRPayload, QRState, validateQR } from '../../../services/qrService';
 
-type ScannerState = 'idle' | 'detecting' | 'detected';
+interface UseQRScannerOptions {
+  onValidQR?: (payload: QRPayload) => void;
+}
 
-export function useQRScanner() {
-  const [state, setState] = useState<ScannerState>('idle');
+export function useQRScanner({ onValidQR }: UseQRScannerOptions) {
+  const [state, setState] = useState<QRState>('scanning');
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [permission, requestPermission] = Camera.useCameraPermissions();
 
-  const onBarCodeScanned = (result: BarCodeScanningResult) => {
-    if (state !== 'idle') return; // Evita escaneos múltiples
-
-    Vibration.vibrate(50); // Feedback háptico inicial
-    setState('detecting');
-
-    // Corrected function name from validateQRCode to validateQrCode
-    const validation = validateQrCode(result.data);
-
-    if (validation.valid && validation.payload) {
-      // Feedback háptico positivo: QR detectado exitosamente
-      Vibration.vibrate([100, 150]);
-      setState('detected');
-
-      // Navegar según el tipo de QR
-      if (validation.type === 'payment') {
-        router.push({
-          pathname: '/payment/confirm',
-          params: { ...validation.payload } as any,
-        });
-      } else if (validation.type === 'info') {
-        const payload = validation.payload as any;
-        router.push({
-          pathname: '/info',
-          params: {
-            title: payload.title,
-            data: JSON.stringify(payload.data),
-          },
-        });
-      }
-    } else {
-      // Feedback háptico negativo: QR no válido
-      Vibration.vibrate([200, 100, 200]);
-      console.log('QR no válido:', validation.error);
-      // Reinicia para permitir otro escaneo
-      setTimeout(() => setState('idle'), 1500);
+  const playSound = async (soundFile: any) => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(soundFile);
+      await sound.playAsync();
+    } catch (error) {
+      console.warn('Could not play sound', error);
     }
   };
 
-  const resetScanner = () => {
-    setState('idle');
-  };
+  const onBarcodeScanned = useCallback(
+    async (result: BarcodeScanningResult) => {
+      if (state !== 'scanning') return;
+
+      setState('detected');
+
+      try {
+        const payload = validateQR(result.data);
+        playSound(require('../../../../assets/sounds/success.mp3'));
+        onValidQR?.(payload);
+      } catch (error: any) {
+        setLastError(error.message);
+        setState('error');
+        playSound(require('../../../../assets/sounds/error.mp3'));
+
+        setTimeout(() => {
+          setState('scanning');
+          setLastError(null);
+        }, 2000);
+      }
+    },
+    [state, onValidQR]
+  );
+
+  const resetScanner = useCallback(() => {
+    setState('scanning');
+    setLastError(null);
+  }, []);
 
   return {
-    scannerState: state,
-    onBarCodeScanned,
+    permission,
+    requestPermission,
+    onBarcodeScanned,
+    state,
+    lastError,
     resetScanner,
   };
 }
