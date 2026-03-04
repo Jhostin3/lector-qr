@@ -7,13 +7,25 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
+import { router } from 'expo-router';
 import { useQRScanner } from '../hooks/useQRScanner';
 import { ScannerOverlay } from '../components/ScannerOverlay';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
+import type { QRPayload } from '../../../services/qrService';
 
 export default function ScannerScreen() {
   const { colors, typography, spacing, borderRadius } = useAppTheme();
-  const { permission, requestPermission, onBarcodeScanned, state, lastError } = useQRScanner({});
+
+  const handleValidQR = (payload: QRPayload) => {
+    router.push({
+      pathname: '/payment/confirm',
+      params: { payload: JSON.stringify(payload) },
+    });
+  };
+
+  const { permission, requestPermission, onBarcodeScanned, state, lastError } = useQRScanner({
+    onValidQR: handleValidQR,
+  });
 
   // ── Estado: esperando permisos ──────────────────────────────────────────────
   if (!permission) {
