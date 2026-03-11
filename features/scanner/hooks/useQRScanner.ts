@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Audio } from 'expo-av';
+import { Audio } from 'expo-audio';
 import { Vibration } from 'react-native';
 import { Camera, BarcodeScanningResult } from 'expo-camera';
 import { QRPayload, QRState, validateQR } from '../../../services/qrService';
@@ -33,13 +33,13 @@ export function useQRScanner({ onValidQR }: UseQRScannerOptions) {
       try {
         const payload = validateQR(result.data);
         Vibration.vibrate(100);
-        playSound(require('../../../../assets/sounds/success.mp3'));
+        // playSound(require('../../../../assets/sounds/success.mp3'));
         onValidQR?.(payload);
       } catch (error: any) {
         Vibration.vibrate([100, 200, 100]);
         setLastError(error.message);
         setState('error');
-        playSound(require('../../../../assets/sounds/error.mp3'));
+        // playSound(require('../../../../assets/sounds/error.mp3'));
 
         setTimeout(() => {
           setState('scanning');

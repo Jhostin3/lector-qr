@@ -11,7 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, Link } from 'expo-router';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { useAppTheme } from '../../../shared/hooks/useAppTheme';
 import { Button } from '../../../shared/components/Button';
@@ -195,6 +195,17 @@ export default function CompradorHomeScreen() {
             </View>
           )}
         </Card>
+
+        {/* ── Botón para ver el mapa ──────────────────────────────────────────────── */}
+        <Link href="/map" asChild>
+          <TouchableOpacity style={{ marginTop: spacing.lg }}>
+            <Card>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={[typography.labelLarge, { color: colors.primary, marginRight: 8 }]}>Ver comercios en el mapa</Text>
+              </View>
+            </Card>
+          </TouchableOpacity>
+        </Link>
 
         {/* ── Mis pagos ────────────────────────────────────────────────────── */}
         <Text style={[typography.headingSmall, { color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.md }]}>

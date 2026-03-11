@@ -37,12 +37,12 @@ export function ScannerOverlay({ isDetected, hasError, errorMessage }: ScannerOv
 
         {isDetected && !hasError && (
           <View style={[styles.messageContent, { backgroundColor: colors.successContainer }]}>
-            <LottieView
+            {/* <LottieView
               source={require('../../../../assets/animations/loading.json')}
               autoPlay
               loop
               style={styles.lottieSmall}
-            />
+            /> */}
             <Text style={[typography.bodyMedium, { color: colors.onSuccessContainer }]}>
               Procesando...
             </Text>
